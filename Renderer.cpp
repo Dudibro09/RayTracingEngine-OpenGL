@@ -66,22 +66,23 @@ void Renderer::SetViewportResolution(int width, int height)
 {
 	// Set the gl viewport resolution
 	glViewport(0, 0, width, height);
+
 	// Resize the accumilate textures
 	renderTexture.Resize(width, height);
 	finalRenderTexture.Resize(width, height);
-	// Activate the shader
-	m_raytraceShader.Activate();
+
 	// Update the aspect ratio
+	m_raytraceShader.Activate();
 	glUniform1f(glGetUniformLocation(m_raytraceShader.ID, "aspectRatio"), (float)height / (float)width);
 }
 
-void Renderer::UploadScene(Scene& scene)
+void Renderer::UploadObjects(Scene& scene)
 {
 	scene.UpdateSSBO(m_raytraceShader.ID);
 	scene.skybox.UploadToShader("skybox", m_raytraceShader.ID, 0);
 }
 
-void Renderer::UploadRaytraceSettings(int maxBounces, int samplesPerPixel, float perspectiveSlope, float focalDistance, float focalBlur, float blur)
+void Renderer::UploadRaytraceSettings()
 {
 	m_raytraceShader.Activate();
 
@@ -114,7 +115,7 @@ std::vector<float> Renderer::GetCurrentFrame(int& width, int& height)
 	return data;
 }
 
-void Renderer::Render(const Scene& scene, bool& viewChanged)
+void Renderer::Render(Scene& scene, bool& viewChanged)
 {
 	if (viewChanged)
 	{
@@ -154,5 +155,11 @@ void Renderer::Render(const Scene& scene, bool& viewChanged)
 	// Render the framebuffer texture to screen
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
+	scene.meshes[1].position = { (float)i / 100.0f, 0, 0 };
+	scene.meshes[1].UpdateTransformMatrix();
+
+	scene.UpdateMeshTransform(m_raytraceShader.ID, 1);
+
+	i++;
 	frame++;
 }

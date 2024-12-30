@@ -30,7 +30,7 @@ App::App(int width, int height, const std::string& title) :
 	// Initialize the renderer class
 	renderer.Initialize(m_windowWidth, m_windowHeight);
 	// Set the raytracing settings
-	renderer.UploadRaytraceSettings(12, 1, 1.3f, 1.0f, 0.0f, 1.0f / (float)m_windowHeight * 1.1f);
+	renderer.UploadRaytraceSettings();
 
 	// Initialize the scene class
 	scene.Initialize();
@@ -64,8 +64,12 @@ void App::HandleWindowResize(int newWidth, int newHeight)
 	m_windowWidth = newWidth;
 	m_windowHeight = newHeight;
 
+	// Update the anti-aliasing
+	renderer.blur = 1.1f / (float)m_windowHeight;
+	// Set the new viewport resolution
 	renderer.SetViewportResolution(newWidth, newHeight);
-	m_viewChanged = true;
+	// Scene changed
+	sceneChanged = true;
 }
 
 void App::LoadScene()
@@ -74,44 +78,37 @@ void App::LoadScene()
 	scene.camera.position = { 0.0f,5.0f,-10.0f };
 	scene.camera.rotation = { 0.6f,0.0f,0.0f };
 
-	//scene.spheres.push_back({ {0,4,0}, 0.5, { { 1.0f, 1.0f, 1.0f }, 1.0f, 20.0f, 0, 0, 1.0f } });
+	scene.meshes.push_back(Mesh());
+	if (!scene.meshes[0].LoadFromObjectFile("objects/cube.obj")) std::cout << "Failed to load!\n";
+	scene.meshes[0].UpdateBoundingBoxes();
+	scene.meshes[0].material = Material({ 0,1,0 }, 0.1f, 0, 0, 0, 1, 1);
+	scene.meshes[0].position = { 10,0,0 };
+	scene.meshes[0].rotation = { 0,0.2f,0 };
+	scene.meshes[0].scale = { 1,0.2f,1 };
+	scene.meshes[0].UpdateTransformMatrix();
 
-	/* Laser light caustics
-	scene.spheres.push_back({ glm::vec3(0,-1,0), 1.0f, Material(glm::vec3(0.9f, 0.9f, 0.9f), 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f) });
-	//scene.spheres.push_back({ glm::vec3(0,1,0), 1.0f, Material(glm::vec3(0.9f, 0.9f, 0.9f), 0.0f, 0.0f, 0.0f, 0.1f, 1.5f, 0.0f) });
-	//scene.LoadMesh("cube.obj", { 0.0f,14.0f,12.0f }, { 1.0f,0.0f,0.0f }, glm::vec3(10.0f), Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 1.0f, 0.2f, 0.0f, 1.0f, 1.0f));
-	//*/
+	scene.meshes.push_back(Mesh());
+	if (!scene.meshes[1].LoadFromObjectFile("objects/drag4.obj")) std::cout << "Failed to load!\n";
+	scene.meshes[1].UpdateBoundingBoxes();
+	scene.meshes[1].material = Material({1,0,0}, 0.8f, 0, 0, 0, 1, 1);
+	scene.meshes[1].UpdateTransformMatrix();
 
-	//* Glass dragon test (5 million triangles)
-	//scene.spheres.push_back({ {0,-100,0}, 100, { { 1.0f, 1.0f, 1.0f }, 1.0f, 0, 0, 0, 1.0f } });
-	scene.LoadMesh("objects/drag0.obj", { 0.0f,1.0f,0.0f }, { 0.0f,0.0f,0.0f }, glm::vec3(1.0f), {{0.1f, 0.9f, 0.5f}, 0.7f, 0.0f, 0.3f, 0.0f, 1.0f, 1.0f});
-	//*/
+	scene.meshes.push_back(Mesh());
+	if (!scene.meshes[2].LoadFromObjectFile("objects/cube.obj")) std::cout << "Failed to load!\n";
+	scene.meshes[2].UpdateBoundingBoxes();
+	scene.meshes[2].material = Material({ 0,1,0 }, 0.1f, 0, 0, 0, 1, 1);
+	scene.meshes[2].position = { 7,0,0 };
+	scene.meshes[2].rotation = { 0,0.0f,0 };
+	scene.meshes[2].UpdateTransformMatrix();
 
-	/* All meshes and spheres material test
-	scene.LoadMesh("cube.obj", { 0.0f,5.0f,0.0f }, { 0.0f,0.0f,0.0f }, glm::vec3(1.0f), { { 0.9f,0.1f,0.1f }, 0.1f, 0, 0, 1.0f, 1.0f });
-	scene.LoadMesh("cube.obj", { 3.0f,5.0f,0.0f }, { 0.0f,0.0f,0.0f }, glm::vec3(1.0f), { { 0.9f,0.9f,0.1f }, 0.9f, 0, 0, 1.0, 1.0f });
-	scene.LoadMesh("cube.obj", { 6.0f,5.0f,0.0f }, { 0.0f,0.0f,0.0f }, glm::vec3(1.0f), { { 0.9f,0.9f,0.9f }, 0.0f, 0, 0, 1.5f, 0.1f });
-	scene.LoadMesh("cube.obj", { 9.0f,5.0f,0.0f }, { 0.0f,0.0f,0.0f }, glm::vec3(1.0f), { { 0.1f,0.9f,0.9f }, 0.0f, 0, 1, 1.0f, 0.1f });
-	scene.LoadMesh("cube.obj", { 12.0f,5.0f,0.0f}, { 0.0f,0.0f,0.0f }, glm::vec3(1.0f), { { 0.1f,0.9f,0.9f }, 0.1f, 0, 0, 1.5f, 0.1f });
+	//scene.spheres.push_back({ { 0,0,0 }, 1.0f, Material({ 0,1,0 }, 0.1f, 0, 0, 0, 1, 1) });
 
-	scene.spheres.push_back({ {0,2,0}, 1, { { 0.9f,0.1f,0.1f }, 0.1f, 0, 0, 1.0f, 1.0f } });
-	scene.spheres.push_back({ {3,2,0}, 1, { { 0.9f,0.9f,0.1f }, 0.9f, 0, 0, 1.0, 1.0f } });
-	scene.spheres.push_back({ {6,2,0}, 1, { { 0.9f,0.9f,0.9f }, 0.0f, 0, 0, 1.5f, 0.1f } });
-	scene.spheres.push_back({ {6,2,3}, 1, { { 0.9f,0.9f,0.9f }, 0.0f, 0, 0, 1.5f, 0.1f } });
-	scene.spheres.push_back({ {9,2,0}, 1, { { 0.1f,0.9f,0.9f }, 0.0f, 0, 1, 1.0f, 0.1f } });
-	scene.spheres.push_back({ {12,2,0},1, { { 0.1f,0.9f,0.9f }, 0.1f, 0, 0, 1.125f, 0.1f } });
-	//*/
-
-	// Precompute the bounding boxes for the triangles
-	scene.UpdateBoundingBox();
 	// Upload the objects to the shader
-	renderer.UploadScene(scene);
+	renderer.UploadObjects(scene);
 }
 
 void App::ScreenShot()
 {
-	std::cout << "Saved frame!\n";
-
 	int texWidth, texHeight;
 	std::vector<float> rawData = renderer.GetCurrentFrame(texWidth, texHeight);
 
@@ -129,9 +126,13 @@ void App::ScreenShot()
 	std::ostringstream oss;
 	oss << std::put_time(std::gmtime(&time), "%Y%m%d_%H%M%S") << '_' << std::setw(3) << std::setfill('0') << ms.count();
 
+	std::string fileLocation = "renders/render-" + oss.str() + ".jpg";
+
 	// Save the frame
 	stbi_flip_vertically_on_write(1);
-	stbi_write_jpg(("renders/render-" + oss.str() + ".jpg").c_str(), texWidth, texHeight, 3, frame.data(), 100);
+	stbi_write_jpg(fileLocation.c_str(), texWidth, texHeight, 3, frame.data(), 100);
+
+	std::cout << "Saved frame: " << fileLocation << "\n";
 
 	Sleep(500);
 }
@@ -167,20 +168,19 @@ int App::Start()
 	while (!glfwWindowShouldClose(m_window))
 	{
 		// Update the camera position based on controls
-		scene.camera.Inputs(m_window, m_deltaTime, m_windowWidth, m_windowHeight, m_viewChanged);
+		scene.camera.Inputs(m_window, m_deltaTime, m_windowWidth, m_windowHeight, sceneChanged);
 		renderer.UploadCameraView(scene);
 
 		// Start rendering/raytracing
-		renderer.Render(scene, m_viewChanged);
+		renderer.Render(scene, sceneChanged);
 		// Update the UI
-		UI.UpdateFrame();
+		UI.UpdateUI(renderer, scene, sceneChanged);
 
-		// Take a screepshot of the current render if the user has pressed "P"
-		if (glfwGetKey(m_window, GLFW_KEY_P))
+		// Take a screenshot of the current render if the user has pressed "P"
+		if (glfwGetKey(m_window, GLFW_KEY_LEFT_CONTROL) && glfwGetKey(m_window, GLFW_KEY_P))
 		{
 			ScreenShot();
 		}
-
 
 		// Update window
 		glfwSwapBuffers(m_window);

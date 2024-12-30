@@ -20,24 +20,35 @@ class Renderer
 	Texture finalRenderTexture;
 
 	unsigned int frame = 0;
+	int i = 0;
 
 public:
+	// Raytracing settings
+	int maxBounces = 12;
+	int samplesPerPixel = 1;
+	float perspectiveSlope = 1.2f;
+	float focalDistance = 1.0f;
+	float focalBlur = 0.0f;
+	float blur = 0.0f;
+
 	void Initialize(int width, int height);
 	void Uninitialize();
 
+	// Set the gl viewport resolution, and updates all the screen textures
 	void SetViewportResolution(int width, int height);
 
-	// Upload the scene spheres, triangles and boundingBoxed to the GPU
-	void UploadScene(Scene& scene);
 	// Uploads the raytrace settings to the GPU
-	void UploadRaytraceSettings(int maxBounces, int samplesPerPixel, float perspectiveSlope, float focalDistance, float focalBlur, float blur);
+	void UploadRaytraceSettings();
+	// Upload all the scene spheres, triangles and boundingBoxed to the GPU
+	void UploadObjects(Scene& scene);
 	// Upload the camera matrix and position to the GPU
 	void UploadCameraView(Scene& scene);
+
 	// Get the frame of the current render
 	std::vector<float> GetCurrentFrame(int& width, int& height);
 
-	// Render to the window
-	void Render(const Scene& scene, bool& sceneChanged);
+	// Render the next frame
+	void Render(Scene& scene, bool& sceneChanged);
 };
 
 #endif

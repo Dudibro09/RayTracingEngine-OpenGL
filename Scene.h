@@ -10,28 +10,25 @@
 class Scene
 {
 private:
-	GLuint trianglesSSBO;
-	GLuint spheresSSBO;
-	GLuint boundingBoxesSSBO;
-	GLuint sortedTriangleIndicesSSBO;
+	GLuint m_spheresSSBO;
+	GLuint m_meshesSSBO;
+	GLuint m_trianglesSSBO;
+	GLuint m_boundingBoxesSSBO;
 
-	void RecursiveBoundingBox(int boundingBoxIndex, std::vector<int>& triangleIndices, int depth);
+	std::vector<ShaderReadyMesh> shaderReadyMeshes;
 
 public:
 	std::vector<Sphere> spheres;
-	std::vector<Triangle> triangles;
-	std::vector<BoundingBox> boundingBoxes;
-	std::vector<int> sortedTriangleIndices;
+	std::vector<Mesh> meshes;
+
 	Texture skybox;
 	Camera camera;
 
 	void Initialize();
 	void Uninitialize();
 
-	// Loads a mesh to the triangle array
-	bool LoadMesh(const char* path, glm::vec3 position, glm::vec3 rotation, glm::vec3 scale, const Material& material);
-	// Precalculates the bounding boxes of all the triangles to drastically improve performance, but makes it hard to dynamically modify the scene triangles
-	void UpdateBoundingBox();
+	void UpdateMeshTransform(GLuint shaderID, const int& index);
+
 	// Updates the shader storage buffer with the scene data
 	void UpdateSSBO(GLuint shaderID);
 };

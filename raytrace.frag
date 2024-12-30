@@ -31,15 +31,12 @@ struct Sphere
 struct Triangle
 {
 	vec4 p[3];
-
-	Material material;
 };
 
 struct BoundingBox
 {
 	vec3 min;
 	float padding;
-
 	vec3 max;
 	float padding2;
 
@@ -47,6 +44,20 @@ struct BoundingBox
 	int boundingBoxAIndex;
 	int boundingBoxBIndex;
 	float padding3;
+};
+
+struct Mesh
+{
+	mat4 localToWorldMatrix;
+	mat4 modelWorldToLocalMatrix;
+
+	int triangleIndex;
+	int nTriangles;
+
+	int boundingBoxIndex;
+	int nBoundingBoxes;
+
+	Material material;
 };
 
 struct HitInfo
@@ -68,6 +79,11 @@ struct Ray
 	// The dot product between the normal of the surface the ray is resting on and the ray normal 
 	float surfaceNormalDot;
 };
+
+Material EmptyMaterial()
+{
+	return Material(vec3(0.0f), 0.0f, vec3(0.0f), 0.0f, vec3(0.0f), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+}
 
 HitInfo EmptyHitInfo()
 {
@@ -91,13 +107,16 @@ uniform uint nSpheres;
 layout(std430, binding = 0) buffer sphereBuffer {
     Sphere spheres[];
 };
+uniform uint nMeshes;
+layout(std430, binding = 1) buffer meshBuffer {
+    Mesh meshes[];
+};
 uniform uint nTriangles;
-layout(std430, binding = 1) buffer triangleBuffer {
+layout(std430, binding = 2) buffer triangleBuffer {
     Triangle triangles[];
 };
-uniform uint maxBoundingBoxDepth;
 uniform uint nBoundingBoxes;
-layout(std430, binding = 2) buffer boundingBoxBuffer {
+layout(std430, binding = 3) buffer boundingBoxBuffer {
     BoundingBox boundingBoxes[];
 };
 
@@ -175,6 +194,11 @@ vec2 RandomPointInCircle(inout uint seed)
 
 
 
+
+vec4 PerspectiveDivide(vec4 v)
+{
+	return vec4(v.xyz / v.w, 1.0f);
+}
 
 vec3 Reflect(vec3 v, vec3 normal)
 {
@@ -338,7 +362,7 @@ HitInfo HitTriangle(Ray ray, Triangle triangle)
 	vec3 flippedNormal = normal;
 	if (determinant < 0.0f) flippedNormal = -flippedNormal;
 
-	return HitInfo(1, distance, point, normal, flippedNormal, triangle.material);
+	return HitInfo(1, distance, point, normal, flippedNormal, EmptyMaterial());
 }
 
 float HitBoundingBox(Ray ray, BoundingBox boundingBox)
@@ -392,112 +416,119 @@ void CheckTriangleCollitions(Ray ray, inout HitInfo closestHit)
 {
 	if (nTriangles == 0) return;
 
-	int currentBoxIndex = 0;
-	
-	// The boxes to check stack
-	int boxesToCheck[32];
-	float closestIntersection[32];
-	int nBoxesToCheck = 0;
-	int needsNewBox = 0;
-
-	// Check if the ray hits the root bounding box
-	closestIntersection[0] = HitBoundingBox(ray, boundingBoxes[0]);
-	if (closestIntersection[0] == infinity)
+	for (int meshIndex = 0; meshIndex < nMeshes; meshIndex++)
 	{
-		return;
-	}
+		Mesh mesh = meshes[meshIndex];
 
-	while (true)
-	{
-		if (needsNewBox == 1)
+		// Transform the ray instead of the object so we are able to dynamically transform the object without recalculating the bounding boxes.
+		Ray transformedRay = ray;
+		transformedRay.origin = (mesh.modelWorldToLocalMatrix * vec4(transformedRay.origin, 1.0f)).xyz;
+		transformedRay.normal = (mesh.modelWorldToLocalMatrix * vec4(transformedRay.normal, 0.0f)).xyz;
+
+		int currentBoxIndex = mesh.boundingBoxIndex;
+
+		// The boxes to check stack
+		int boxesToCheck[32];
+		float closestIntersection[32];
+		int nBoxesToCheck = 0;
+		int needsNewBox = 0;
+
+		// Check if the ray hits the root bounding box
+		closestIntersection[0] = HitBoundingBox(transformedRay, boundingBoxes[currentBoxIndex]);
+		if (closestIntersection[0] == infinity)
 		{
-			// Check if there are any other boxes to check
-			if (nBoxesToCheck == 0)
-			{
-				break;
-			}
-
-			// Get the next box from stack
-			nBoxesToCheck = nBoxesToCheck - 1;
-			currentBoxIndex = boxesToCheck[nBoxesToCheck];
-			
-			// Check if the box is even worth checking
-			if (closestIntersection[nBoxesToCheck] >= closestHit.distance && closestHit.didHit == 1)
-			{
-				continue;
-			}
-
-			// Successfully grabbed a new box to check
-			needsNewBox = 0;
-		}
-
-		BoundingBox currentBox = boundingBoxes[currentBoxIndex];
-
-		int boxIndexA = currentBox.boundingBoxAIndex;
-		int boxIndexB = currentBox.boundingBoxBIndex;
-
-		// Check if node is a leaf node
-		if (boxIndexA == -1 || boxIndexB == -1)
-		{
-			if (currentBox.triangleIndex == -1)
-			{
-				// There are no triangles
-				continue;
-			}
-
-			Triangle triangle = triangles[currentBox.triangleIndex];
-			HitInfo hit = HitTriangle(ray, triangle);
-			
-			if ((hit.didHit == 1 && closestHit.distance >= hit.distance) || closestHit.didHit == 0)
-			{
-				closestHit = hit;
-			}
-
-			needsNewBox = 1;
 			continue;
 		}
 
-		float distanceA = HitBoundingBox(ray, boundingBoxes[boxIndexA]);
-		float distanceB = HitBoundingBox(ray, boundingBoxes[boxIndexB]);
-
-		// If the distance is more than the closest hit, there is no need to check any further
-		if (distanceA >= closestHit.distance && closestHit.didHit == 1) distanceA = infinity;
-		if (distanceB >= closestHit.distance && closestHit.didHit == 1) distanceB = infinity;
-
-		if (distanceA != infinity && distanceB != infinity)
+		while (needsNewBox != 1 || nBoxesToCheck != 0)
 		{
-			if (distanceA < distanceB)
+			if (needsNewBox == 1)
 			{
-				// Box A is closer, push box B to stack
-				boxesToCheck[nBoxesToCheck] = boxIndexB;
-				closestIntersection[nBoxesToCheck] = distanceB;
-				nBoxesToCheck = nBoxesToCheck + 1;
+				// Get the next box from stack
+				nBoxesToCheck = nBoxesToCheck - 1;
+				currentBoxIndex = boxesToCheck[nBoxesToCheck];
 
-				// Set box A as the current box and recursivley check it
+				// Check if the box is even worth checking
+				if (closestIntersection[nBoxesToCheck] >= closestHit.distance && closestHit.didHit == 1)
+				{
+					continue;
+				}
+
+				// Successfully grabbed a new box to check
+				needsNewBox = 0;
+			}
+
+			BoundingBox currentBox = boundingBoxes[currentBoxIndex];
+
+			int boxIndexA = currentBox.boundingBoxAIndex;
+			int boxIndexB = currentBox.boundingBoxBIndex;
+
+			// Check if node is a leaf node
+			if (boxIndexA == -1 || boxIndexB == -1)
+			{
+				if (currentBox.triangleIndex != -1)
+				{
+					Triangle triangle = triangles[mesh.triangleIndex + currentBox.triangleIndex];
+					HitInfo hit = HitTriangle(transformedRay, triangle);
+					hit.material = mesh.material;
+
+					hit.point = (mesh.localToWorldMatrix * vec4(hit.point, 1.0f)).xyz;
+
+					if ((hit.didHit == 1 && closestHit.distance >= hit.distance) || closestHit.didHit == 0)
+					{
+						closestHit = hit;
+					}
+				}
+
+				needsNewBox = 1;
+				continue;
+			}
+
+			boxIndexA += mesh.boundingBoxIndex;
+			boxIndexB += mesh.boundingBoxIndex;
+
+			float distanceA = HitBoundingBox(transformedRay, boundingBoxes[boxIndexA]);
+			float distanceB = HitBoundingBox(transformedRay, boundingBoxes[boxIndexB]);
+
+			// If the distance is more than the closest hit, there is no need to check any further
+			if (distanceA >= closestHit.distance && closestHit.didHit == 1) distanceA = infinity;
+			if (distanceB >= closestHit.distance && closestHit.didHit == 1) distanceB = infinity;
+
+			if (distanceA != infinity && distanceB != infinity)
+			{
+				if (distanceA < distanceB)
+				{
+					// Box A is closer, push box B to stack
+					boxesToCheck[nBoxesToCheck] = boxIndexB;
+					closestIntersection[nBoxesToCheck] = distanceB;
+					nBoxesToCheck = nBoxesToCheck + 1;
+
+					// Set box A as the current box and recursivley check it
+					currentBoxIndex = boxIndexA;
+				}
+				else
+				{
+					// Box B is closer, push box A to stack
+					boxesToCheck[nBoxesToCheck] = boxIndexA;
+					closestIntersection[nBoxesToCheck] = distanceA;
+					nBoxesToCheck = nBoxesToCheck + 1;
+
+					// Set box B as the current box and recursivley check it
+					currentBoxIndex = boxIndexB;
+				}
+			}
+			else if (distanceA != infinity)
+			{
 				currentBoxIndex = boxIndexA;
+			}
+			else if (distanceB != infinity)
+			{
+				currentBoxIndex = boxIndexB;
 			}
 			else
 			{
-				// Box B is closer, push box A to stack
-				boxesToCheck[nBoxesToCheck] = boxIndexA;
-				closestIntersection[nBoxesToCheck] = distanceA;
-				nBoxesToCheck = nBoxesToCheck + 1;
-
-				// Set box B as the current box and recursivley check it
-				currentBoxIndex = boxIndexB;
+				needsNewBox = 1;
 			}
-		}
-		else if (distanceA != infinity)
-		{
-			currentBoxIndex = boxIndexA;
-		}
-		else if (distanceB != infinity)
-		{
-			currentBoxIndex = boxIndexB;
-		}
-		else
-		{
-			needsNewBox = 1;
 		}
 	}
 }
@@ -576,6 +607,11 @@ vec3 SkyColor(vec3 normal)
 
 vec3 Trace(Ray ray, inout uint seed)
 {
+	if (nMeshes == 1)
+	{
+		return vec3(1.0f, 1.0f, 0.0f);
+	}
+
 	vec3 incomingLight = vec3(0.0f);
 	vec3 rayColor      = vec3(1.0f);
 	float currentRefractiveIndex = 1.0f;
@@ -675,10 +711,19 @@ void main()
 	for (int s = 0; s < samplesPerPixel; s++)
 	{
 		vec2 randomBlurPoint = RandomPointInCircle(seed) * blur;
+		vec2 randomFocalBlurPoint = RandomPointInCircle(seed) * focalBlur;
 
-    	vec3 point = vec3(coordinate.x * focalDistance * perspectiveSlope + randomBlurPoint.x * focalDistance, coordinate.y * focalDistance * perspectiveSlope * aspectRatio + randomBlurPoint.y * focalDistance, focalDistance);
-    	vec3 rayOrigin = cameraPosition;
-		vec3 rayNormal = normalize((cameraRotation * vec4(normalize(point), 0.0f)).xyz);
+    	vec3 gridPoint = vec3(coordinate.x * focalDistance * perspectiveSlope, coordinate.y * focalDistance * perspectiveSlope * aspectRatio, focalDistance);
+    	// Add random jitter to get a uniform blur, also usefull for anti-aliasing
+		gridPoint += vec3(randomBlurPoint, 0.0f) * focalDistance;
+		// Make a ray origin with random jitter to simulate focal blur
+		vec3 rayOrigin = vec3(randomFocalBlurPoint, 0.0f);
+		vec3 rayNormal = normalize(gridPoint - vec3(randomFocalBlurPoint, 0.0f));
+
+		// Transform the ray from its local transform into world space
+		rayNormal = (cameraRotation * vec4(rayNormal, 0.0f)).xyz;
+		rayOrigin = (cameraRotation * vec4(rayOrigin, 0.0f)).xyz + cameraPosition;
+
 		Ray ray;
 		ray.origin = rayOrigin;
 		ray.normal = rayNormal;

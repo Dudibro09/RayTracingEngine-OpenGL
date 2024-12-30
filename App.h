@@ -22,11 +22,11 @@ private:
 	double m_prevTime = 0.0, m_crntTime, m_deltaTime = 0.0, m_fTheta = 0.0;
 	unsigned int m_frameCount = 0;
 	
-	bool m_viewChanged = false;
-
 public:
 	Renderer renderer;
 	Scene scene;
+	// A value to make sure that whenever something in the scene changes, the accumilation starts over
+	bool sceneChanged = false;
 
 	App(int width, int height, const std::string& title);
 	~App();
