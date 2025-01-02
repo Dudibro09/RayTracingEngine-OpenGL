@@ -76,6 +76,11 @@ void Renderer::SetViewportResolution(int width, int height)
 	glUniform1f(glGetUniformLocation(m_raytraceShader.ID, "aspectRatio"), (float)height / (float)width);
 }
 
+int Renderer::GetRenderShaderID()
+{
+	return m_raytraceShader.ID;
+}
+
 void Renderer::UploadObjects(Scene& scene)
 {
 	scene.UpdateSSBO(m_raytraceShader.ID);
@@ -129,6 +134,17 @@ void Renderer::Render(Scene& scene, bool& viewChanged)
 	scene.skybox.Bind();
 	// Upload the current frame count
 	glUniform1ui(glGetUniformLocation(m_raytraceShader.ID, "frame"), frame);
+
+	if (!renderMode)
+	{
+		// Activate the framebuffer to draw to
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		// Start ray tracing
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		return;
+	}
+
 	// Activate the framebuffer to draw to
 	glBindFramebuffer(GL_FRAMEBUFFER, renderFBO);
 	// Start ray tracing
@@ -155,11 +171,5 @@ void Renderer::Render(Scene& scene, bool& viewChanged)
 	// Render the framebuffer texture to screen
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	scene.meshes[1].position = { (float)i / 100.0f, 0, 0 };
-	scene.meshes[1].UpdateTransformMatrix();
-
-	scene.UpdateMeshTransform(m_raytraceShader.ID, 1);
-
-	i++;
 	frame++;
 }

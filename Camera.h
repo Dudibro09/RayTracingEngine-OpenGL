@@ -23,8 +23,8 @@ private:
 
 public:
 
-	glm::vec3 position;
-	glm::vec3 rotation;
+	glm::vec3 position = glm::vec3(0.0f);
+	glm::vec3 rotation = glm::vec3(0.0f);
 
 	float speed = 5.0f;
 	float sensitivity = 3.0f;

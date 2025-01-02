@@ -2,7 +2,15 @@
 
 void RaytracingGUI::UpdateObjectsHierarchyUI(bool& sceneChanged)
 {
-	ImGui::Begin("Objects");
+	ImGui::Begin("Scene");
+
+	ImGui::Button("Change skybox");
+
+	if (ImGui::Button("Add Object"))
+	{
+		addObjectWindowOpen = true;
+	}
+
 
 	for (SceneObject& object : sceneObjects)
 		ImGui::Button(object.name.c_str(), { 200, 20 });
@@ -21,6 +29,12 @@ void RaytracingGUI::UpdateSettingsUI(Renderer& renderer, bool& sceneChanged)
 	settingsChanged = settingsChanged || ImGui::SliderFloat("perspective slope", &renderer.perspectiveSlope, 0.1f, 4.0f);
 	settingsChanged = settingsChanged || ImGui::InputFloat("focal distance", &renderer.focalDistance);
 	settingsChanged = settingsChanged || ImGui::InputFloat("focal blur", &renderer.focalBlur);
+	if (ImGui::Checkbox("render mode", &renderer.renderMode))
+	{
+		glfwMakeContextCurrent(window);
+		glfwSwapInterval((int)(!renderer.renderMode));
+		settingsChanged = true;
+	}
 
 	if (settingsChanged)
 	{
@@ -31,10 +45,30 @@ void RaytracingGUI::UpdateSettingsUI(Renderer& renderer, bool& sceneChanged)
 	ImGui::End();
 }
 
+void RaytracingGUI::UpdateAddObjectUI(Scene& scene, Renderer& renderer, bool &sceneChanged)
+{
+	if (!addObjectWindowOpen) return;
+
+	ImGui::Begin("AddObject");
+
+	if (ImGui::Button("Sphere"))
+	{
+		scene.spheres.push_back({ { 0,0,0 }, 1.0f, Material({0.9f, 0.9f, 0.9f}, 0.7f, 0,0,0,0,1)});
+		renderer.UploadObjects(scene);
+		addObjectWindowOpen = false;
+		
+		sceneObjects.push_back({ "Sphere", ObjectType::TYPE_SPHERE, (int)scene.spheres.size() - 1 });
+	}
+
+	ImGui::End();
+}
+
 RaytracingGUI::RaytracingGUI(GLFWwindow* window) :
 	io(ImGui::GetIO()),
 	window(window)
 {
+	glfwMakeContextCurrent(window);
+
 	// Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     
 	// Enable Gamepad Controls
@@ -59,6 +93,7 @@ void RaytracingGUI::UpdateUI(Renderer& renderer, Scene& scene, bool& sceneChange
 	
 	UpdateObjectsHierarchyUI(sceneChanged);
 	UpdateSettingsUI(renderer, sceneChanged);
+	UpdateAddObjectUI(scene, renderer, sceneChanged);
 
 	// Rendering
 	ImGui::Render();

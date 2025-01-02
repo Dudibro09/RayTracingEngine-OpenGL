@@ -27,7 +27,10 @@ public:
 	void Initialize();
 	void Uninitialize();
 
-	void UpdateMeshTransform(GLuint shaderID, const int& index);
+	void UpdateMesh(GLuint shaderID, const int& index);
+	void UpdateSphere(GLuint shaderID, const int& index);
+
+	void AddMesh(const char* file);
 
 	// Updates the shader storage buffer with the scene data
 	void UpdateSSBO(GLuint shaderID);

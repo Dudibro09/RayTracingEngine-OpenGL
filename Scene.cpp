@@ -20,10 +20,11 @@ void Scene::Uninitialize()
 	skybox.Delete();
 }
 
-void Scene::UpdateMeshTransform(GLuint shaderID, const int& index)
+void Scene::UpdateMesh(GLuint shaderID, const int& index)
 {
 	shaderReadyMeshes[index].localToWorldMatrix = meshes[index].localToWorldMatrix;
 	shaderReadyMeshes[index].modelWorldToLocalMatrix = meshes[index].modelWorldToLocalMatrix;
+	shaderReadyMeshes[index].material = meshes[index].material;
 
 	glUseProgram(shaderID);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_meshesSSBO);
@@ -32,13 +33,38 @@ void Scene::UpdateMeshTransform(GLuint shaderID, const int& index)
 	ShaderReadyMesh* ptr = (ShaderReadyMesh*)glMapBufferRange(GL_SHADER_STORAGE_BUFFER, offset, sizeof(ShaderReadyMesh), GL_MAP_WRITE_BIT);
 	if (ptr)
 	{
-		(*ptr).localToWorldMatrix = shaderReadyMeshes[index].localToWorldMatrix;
-		(*ptr).modelWorldToLocalMatrix = shaderReadyMeshes[index].modelWorldToLocalMatrix;
+		(*ptr) = shaderReadyMeshes[index];
 		glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
 	}
 
 	// Unbind the buffer
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void Scene::UpdateSphere(GLuint shaderID, const int& index)
+{
+	glUseProgram(shaderID);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_spheresSSBO);
+
+	int offset = sizeof(Sphere) * index;
+	Sphere* ptr = (Sphere*)glMapBufferRange(GL_SHADER_STORAGE_BUFFER, offset, sizeof(Sphere), GL_MAP_WRITE_BIT);
+	if (ptr)
+	{
+		(*ptr) = spheres[index];
+		glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+	}
+
+	// Unbind the buffer
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void Scene::AddMesh(const char* file)
+{
+	meshes.push_back(Mesh());
+	meshes[meshes.size() - 1].LoadFromObjectFile(file);
+	meshes[meshes.size() - 1].UpdateBoundingBoxes();
+	meshes[meshes.size() - 1].UpdateTransformMatrix();
+	meshes[meshes.size() - 1].material = Material({ 0.9f, 0.9f, 0.9f }, 0.8f, 0.0f, 0.5f, 1.0f, 1.5f, 1.0f);
 }
 
 void Scene::UpdateSSBO(GLuint shaderID)

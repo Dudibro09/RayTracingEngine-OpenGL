@@ -607,11 +607,6 @@ vec3 SkyColor(vec3 normal)
 
 vec3 Trace(Ray ray, inout uint seed)
 {
-	if (nMeshes == 1)
-	{
-		return vec3(1.0f, 1.0f, 0.0f);
-	}
-
 	vec3 incomingLight = vec3(0.0f);
 	vec3 rayColor      = vec3(1.0f);
 	float currentRefractiveIndex = 1.0f;

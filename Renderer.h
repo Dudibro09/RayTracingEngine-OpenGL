@@ -20,7 +20,6 @@ class Renderer
 	Texture finalRenderTexture;
 
 	unsigned int frame = 0;
-	int i = 0;
 
 public:
 	// Raytracing settings
@@ -30,12 +29,15 @@ public:
 	float focalDistance = 1.0f;
 	float focalBlur = 0.0f;
 	float blur = 0.0f;
+	bool renderMode = false;
 
 	void Initialize(int width, int height);
 	void Uninitialize();
 
 	// Set the gl viewport resolution, and updates all the screen textures
 	void SetViewportResolution(int width, int height);
+	// Get the render shader id
+	int GetRenderShaderID();
 
 	// Uploads the raytrace settings to the GPU
 	void UploadRaytraceSettings();

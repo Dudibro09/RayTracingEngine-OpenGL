@@ -9,7 +9,7 @@
 #include "Scene.h"
 #include "Renderer.h"
 
-enum ObjectType
+enum ObjectType : unsigned int
 {
 	TYPE_SPHERE,
 	TYPE_MESH
@@ -27,10 +27,15 @@ class RaytracingGUI
 	ImGuiIO& io;
 	GLFWwindow* window;
 
+
 	std::vector<SceneObject> sceneObjects;
 
 	void UpdateObjectsHierarchyUI(bool& sceneChanged);
 	void UpdateSettingsUI(Renderer& renderer, bool& sceneChanged);
+	void UpdateAddObjectUI(Scene& scene, Renderer& renderer, bool& sceneChanged);
+	void UpdateObjectEditor(Scene& scene, Renderer& renderer, bool& sceneChanged);
+
+	bool addObjectWindowOpen = false;
 
 public:
 	RaytracingGUI(GLFWwindow* window);
